@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 import psycopg2    
 
-def get_community()
+def get_community():
     load_dotenv()
     return os.getenv('COMMUNITY_ID')
 

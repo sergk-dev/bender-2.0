@@ -11,7 +11,7 @@ require a bot token.
 import json
 import logging
 from telegram import __version__ as TG_VER
-
+import urllib.parse as urllib
 try:
     from telegram import __version_info__
 except ImportError:
@@ -67,8 +67,10 @@ logger = logging.getLogger(__name__)
 # Define a `/start` command handler.
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message with a button that opens a the web app."""
-    value_to_send = ''
-    web_app=WebAppInfo(url=f"https://all12steps.ru/botapps/text_input.html?data={value_to_send}")
+    value_to_send = urllib.quote('где кнопка лебовски')
+    name = urllib.quote('Где кнопка лебовски')
+    web_app_url = f"https://all12steps.ru/botapps/text_input.html?data={value_to_send}&name={name}"
+    web_app=WebAppInfo(url=web_app_url)
     await update.message.reply_text(
         "Please press the button below to choose a color via the WebApp.",
         reply_markup=ReplyKeyboardMarkup.from_button(
