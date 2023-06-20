@@ -10,17 +10,17 @@
 </head>
 <body style="background-color: #ffffff">
     <div style="position: absolute; margin-top: 5vh; margin-left: 5vw; height: 90vh; width: 90vw; border-radius: 5vh; background-color: var(--tg-theme-bg-color); box-shadow: 0 0 2vw #000000;">
-        <input id="textInput" type="text" style="display: block; width: 80%; margin: 5vh auto; padding: 1vh;">
+        <textarea id="textInput" type="text" style="display: block; width: 80% height: 80%; margin: 5vh auto; padding: 1vh;"></textarea>
     </div>
 </body>
 <script type="text/javascript">
     Telegram.WebApp.ready();
     const inputValue = Telegram.WebApp.initData;
     document.getElementById('textInput').value = inputValue;
-    Telegram.WebApp.MainButton.setText('Submit').show().onClick(function () {
+    Telegram.WebApp.MainButton.setText('Готово').show().onClick(function () {
         const inputText = document.getElementById('textInput').value;
         const data = JSON.stringify({text: inputText});
-        Telegram.WebApp.sendData(data);
+        Telegram.WebApp.answerWebAppQuery(Telegram.WebAppInitData.query_id, data);
         Telegram.WebApp.close();
     });
     Telegram.WebApp.expand();

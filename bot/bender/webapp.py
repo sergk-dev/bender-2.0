@@ -10,7 +10,6 @@ require a bot token.
 """
 import json
 import logging
-from ..dev import make_query 
 from telegram import __version__ as TG_VER
 
 try:
@@ -26,6 +25,37 @@ if __version_info__ < (20, 0, 0, "alpha", 1):
     )
 from telegram import KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, WebAppInfo
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+import os
+from dotenv import load_dotenv
+import psycopg2    
+querylist = []
+def make_query(query_text, query_params):
+    load_dotenv()
+    DB_HOST = os.getenv('DB_HOST')
+    DB_PORT = os.getenv('DB_PORT')
+    DB_NAME = os.getenv('DB_NAME')
+    DB_USERNAME = os.getenv('DB_USERNAME')
+    DB_PASSWORD = os.getenv('DB_PASSWORD')
+    
+    conn = psycopg2.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        database=DB_NAME,
+        user=DB_USERNAME,
+        password=DB_PASSWORD
+    )
+    cursor = conn.cursor()    
+    cursor.execute(query_text, query_params)
+    if query_text.startswith('SELECT'):
+        results = cursor.fetchall()
+    else:
+        results = None
+    cursor.close()
+    conn.commit()
+    conn.close()
+    querylist.append(cursor.query)
+    print(querylist) 
+    return results   
 
 # Enable logging
 logging.basicConfig(
@@ -56,19 +86,20 @@ async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     # (see webappbot.html)
     data = json.loads(update.effective_message.web_app_data.data)
     query = "INSERT INTO bender_prey (community_id, text, type, user_id) VALUES (%s, %s, %s, %s)"
-    params = (1, data["text"], "prod", 0)
+    params = (1, data['text'], 'prod', 0)
     make_query(query, params)
     await update.message.reply_html(
         text=data["text"],
-        reply_markup=ReplyKeyboardRemove(),
+        #reply_markup=ReplyKeyboardRemove(),
     )
 
 
 def main() -> None:
     """Start the bot."""
     # Create the Application and pass it your bot's token.
-    application = Application.builder().token("").build()
-
+    load_dotenv()
+    API_KEY = os.getenv('API_KEY')
+    application = Application.builder().token(API_KEY).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data))
 
