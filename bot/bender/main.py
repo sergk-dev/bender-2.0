@@ -53,7 +53,6 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(pr_callback, r"^pr_.*$"))
     application.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data))
     application.add_handler(MessageHandler(filters.Text(['Молитвы']), pr_start))
-    application.add_handler(MessageHandler(filters.Text(['Телефоны','Группы','Файлы','Спикерские','Служения']), event_in_develop))
     
     # Run the bot until the user presses Ctrl-C
     application.run_polling()

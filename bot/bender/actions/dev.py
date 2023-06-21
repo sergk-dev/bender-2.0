@@ -1,12 +1,12 @@
 import os
 from dotenv import load_dotenv
-import psycopg2    
+import asyncpg    
 
 def get_community():
     load_dotenv()
-    return os.getenv('COMMUNITY_ID')
+    return int(os.getenv('COMMUNITY_ID'))
 
-def make_query(query_text, query_params):
+async def make_query(query_text, query_params):
     load_dotenv()
     DB_HOST = os.getenv('DB_HOST')
     DB_PORT = os.getenv('DB_PORT')
@@ -14,22 +14,14 @@ def make_query(query_text, query_params):
     DB_USERNAME = os.getenv('DB_USERNAME')
     DB_PASSWORD = os.getenv('DB_PASSWORD')
     
-    conn = psycopg2.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        database=DB_NAME,
-        user=DB_USERNAME,
-        password=DB_PASSWORD
-    )
-    cursor = conn.cursor()    
-    cursor.execute(query_text, query_params)
+    conn = await asyncpg.connect(f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
+    
     if query_text.startswith('SELECT'):
-        results = cursor.fetchall()
+        results = await conn.fetch(query_text, *query_params)
     else:
         results = None
-    cursor.close()
-    if query_text.startswith('SELECT')!=True:
-        conn.commit()
+        await conn.execute(query_text, *query_params)
         
-    conn.close() 
+    await conn.close()
+     
     return results   

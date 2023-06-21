@@ -13,13 +13,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-preys_list = []
 preys_type = ""
 prey_id = 0
 prey_name = ""
-community_id = get_community()
+COMMUNITY_ID = get_community()
 
-async def pr_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, callback_data: str) -> None:
+preys_lists = {"prog": None, "my": None, "com": None}
+
+async def pr_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    callback_data = update.callback_query.data
     if callback_data.startswith('pr_list'):
         await pr_list(update, context)
     elif callback_data.startswith('pr_show'):
@@ -46,52 +48,61 @@ async def pr_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Какие молитвы тебе показать?", reply_markup=reply_markup)
 
-def fetch_preys(prey_type, user_id=None):
+async def fetch_preys(prey_type, user_id=None):
     
     if user_id:
-        query = "SELECT id, name FROM bender_prey WHERE type = %s AND user_id = %s"
-        params = (prey_type, user_id)
+        query = "SELECT id, name, text, user_id FROM bender_prey WHERE type = $1 AND user_id = $2 AND community_id = $3"
+        params = (prey_type, user_id, COMMUNITY_ID)
     else:
-        query = "SELECT id, name FROM bender_prey WHERE type = %s"
-        params = (prey_type,)
+        query = "SELECT id, name, text, user_id FROM bender_prey WHERE type = $1 AND community_id = $2"
+        params = (prey_type, COMMUNITY_ID)
         
-    results = make_query(query, params)
+    return await make_query(query, params)
     
-    preys_list = results
+async def delete_prey(prey_id) -> None:
     
-    return results
-
-def delete_prey(prey_id) -> None:
-    
-    query = "DELETE FROM bender_prey WHERE id = %s"
+    query = "DELETE FROM bender_prey WHERE id = $1"
     params = (prey_id)
         
-    make_query(query, params)
+    await make_query(query, params)
 
 async def pr_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    global preys_type
+    global preys_lists
+    
     query = update.callback_query
     if query.data == 'pr_list_prog':
-        type = 'prog'
+        preys_type = 'prog'
         user_id = None
     elif query.data == 'pr_list_my':
-        type = 'my'
+        preys_type = 'my'
         user_id = query.from_user.id
     else:
-        type = 'com'
+        preys_type = 'com'
         user_id = None
-    preys_type = type    
-    preys = fetch_preys(prey_type=type, user_id=user_id)
+    if preys_lists[preys_type] == None or preys_lists[preys_type] == []:
+        preys_lists[preys_type] = await fetch_preys(prey_type=preys_type, user_id=user_id)
     keyboard = []
     list = ""
-    i = 0
-    for prey in preys:
-        i=0
-        keyboard_row = []
-        while i<=5:
-            keyboard_row.append(InlineKeyboardButton(prey[1], callback_data="pr_show_"+str(prey[0])))
-        keyboard.append(keyboard_row)
+    prey_ord = 0
+    i=0
+    keyboard_row = []
+    for prey in preys_lists[preys_type]:
+        if i == 5:
+            keyboard.append(keyboard_row)
+            keyboard_row = []
+            i=0
+        prey_ord += 1
         i += 1
-        list += str(i) + ". " + prey[1] + "\n"
+        keyboard_row.append(InlineKeyboardButton(str(prey_ord), callback_data="pr_show_"+str(prey[0])))
+        list += str(prey_ord) + ". " + prey[1] + "\n"
+    if keyboard_row != []:
+        keyboard.append(keyboard_row)
+    if list == "":
+        if preys_type == 'my':
+            list = "Вы еще не сохранили ни одной молитвы. Возбмите что-то из других списков или добавьте свою."
+        else:
+            list = "Пока никто не добавил молитв в этот список. Возьмите что-то из других списков или добавьте свою."
     if preys_type == 'my':
         keyboard.append([InlineKeyboardButton("Записать свою", web_app=WebAppInfo(url=f"https://all12steps.ru/botapps/text_input.html?data=&type=pr&name="))])
     keyboard.append([InlineKeyboardButton("Программные", callback_data="pr_list_prog")])
@@ -102,56 +113,123 @@ async def pr_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await query.edit_message_text(text=list, reply_markup=reply_markup)
     
 async def pr_show(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    
+    global prey_id
+    global preys_lists
+    
     query = update.callback_query
-    prey_id = int(str.replace(query.data, 'pr_show_', ''))
-    prey_user_id = 0
-    for prey_fromlist in preys_list:
-        if prey_fromlist[0] == prey_id:
-            prev_prey_id = preys_list[prey_fromlist.index-1][0]
-            next_prey_id = preys_list[prey_fromlist.index+1][0]
-            prey_user_id = prey_fromlist[2]
-            break
+    if context.bot_data.get('show_prey_after_delete') != None:
+        if context.bot_data['show_prey_after_delete']==True:
+            context.bot_data['show_prey_after_delete']=False
+        else:
+            prey_id = int(str.replace(query.data, 'pr_show_', ''))
+    else:
+        prey_id = int(str.replace(query.data, 'pr_show_', ''))
         
+    user_id = update.callback_query.from_user.id
+    if preys_lists[preys_type] == None or preys_lists[preys_type] == []:
+        if preys_type == 'my':
+            preys_lists[preys_type] = await fetch_preys(prey_type='my', user_id=user_id)
+        else:
+            preys_lists[preys_type] = await fetch_preys(prey_type=preys_type, user_id=None)
+            
+    prey_user_id = 0
+    prev_prey_id = 0
+    next_prey_id = 0
+    prey_text = ""
+    for prey_fromlist in preys_lists[preys_type]:
+        if prey_fromlist[0] == prey_id:
+            index = preys_lists[preys_type].index(prey_fromlist)
+            if index > 0:
+                prev_prey_id = preys_lists[preys_type][index-1][0]
+            if index < len(preys_lists[preys_type])-1: 
+                next_prey_id = preys_lists[preys_type][index+1][0]
+            prey_text   = prey_fromlist[2]
+            prey_user_id = prey_fromlist[3]
+            break
+    keyboard = []
+    keabordRow = []
+    if prev_prey_id > 0:
+        keabordRow.append(InlineKeyboardButton("<- предыдущая", callback_data=f"pr_show_{prev_prey_id}"))
+    if next_prey_id > 0:
+        keabordRow.append(InlineKeyboardButton("следующая ->", callback_data=f"pr_show_{next_prey_id}")) 
+    keyboard.append(keabordRow)           
     if preys_type == 'my':
-        text = urllib.quote(update.effective_message.text)
-        keyboard = [[InlineKeyboardButton("<- предыдущая", callback_data=f"pr_show_{prev_prey_id}"), InlineKeyboardButton("следующая ->", callback_data=f"pr_show_{next_prey_id}")],
-                [InlineKeyboardButton("Назад к списку", callback_data=f"pr_list_{preys_type}"), InlineKeyboardButton("Поделиться со всеми", callback_data=f"pr_share_{prey_id}")]
-                [InlineKeyboardButton("Удалить", callback_data=f"pr_delete_{prey_id}"), InlineKeyboardButton("Изменить", web_app=WebAppInfo(url=f"https://all12steps.ru/botapps/text_input.html?data={text}&type=pr"))]]
+        text = urllib.quote(update.message.text)
+        keyboard.append([InlineKeyboardButton("Назад к списку", callback_data=f"pr_list_{preys_type}"), InlineKeyboardButton("Поделиться со всеми", callback_data=f"pr_share_{prey_id}")])
+        keyboard.append([InlineKeyboardButton("Удалить", callback_data=f"pr_delete_{prey_id}"), InlineKeyboardButton("Изменить", web_app=WebAppInfo(url=f"https://all12steps.ru/botapps/text_input.html?data={text}&type=pr"))])
     elif preys_type == 'com':
-        keyboard = [[InlineKeyboardButton("<- предыдущая", callback_data=f"pr_show_{prev_prey_id}"), InlineKeyboardButton("следующая ->", callback_data=f"pr_show_{next_prey_id}")],
-                [InlineKeyboardButton("Назад к списку", callback_data=f"pr_list_{preys_type}"), InlineKeyboardButton("Сохранить в мои", callback_data=f"pr_save_{prey_id}")]]
+        keyboard.append([InlineKeyboardButton("Назад к списку", callback_data=f"pr_list_{preys_type}"), InlineKeyboardButton("Сохранить в мои", callback_data=f"pr_save_{prey_id}")])
         if prey_user_id == query.from_user.id:
-            text = urllib.quote(update.effective_message.text)
+            text = urllib.quote(update.message.text)
             keyboard.append([InlineKeyboardButton("Удалить", callback_data=f"pr_delete_{prey_id}"), InlineKeyboardButton("Изменить", web_app=WebAppInfo(url=f"https://all12steps.ru/botapps/text_input.html?data={text}&type=pr"))])
     else:
-        keyboard = [[InlineKeyboardButton("<- предыдущая", callback_data=f"pr_show_{prev_prey_id}"), InlineKeyboardButton("следующая ->", callback_data=f"pr_show_{next_prey_id}")],
-                [InlineKeyboardButton("Назад к списку", callback_data=f"pr_list_{preys_type}"), InlineKeyboardButton("Сохранить в мои", callback_data=f"pr_save_{prey_id}")]]
+        keyboard.append([InlineKeyboardButton("Назад к списку", callback_data=f"pr_list_{preys_type}"), InlineKeyboardButton("Сохранить в мои", callback_data=f"pr_save_{prey_id}")])
     
     await query.answer()
 
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text(text=preys[0][1], reply_markup=reply_markup)
+    await query.edit_message_text(text=prey_text, reply_markup=reply_markup)
     
 async def pr_delete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    global preys_lists
+    global prey_id
+    
+    user_id = update.callback_query.from_user.id
+    if preys_lists[preys_type] == None or preys_lists[preys_type] == []:
+        if preys_type == 'my':
+            preys_lists[preys_type] = await fetch_preys(prey_type='my', user_id=user_id)
+        else:
+            preys_lists[preys_type] = await fetch_preys(prey_type=preys_type, user_id=None)
+    
     query = update.callback_query
-    delete_prey(prey_id)
-    await query.answer(text='Удалил из моих молитв.')
+    await delete_prey(prey_id)
+    if preys_type=="my":
+        user_id=query.from_user.id
+        text='Удалил из моих молитв.'
+    else:
+        user_id= None
+        text='Удалил из общих молитв.'
+    prev_prey_id = 0
+    for prey_fromlist in preys_lists[preys_type]:
+        if prey_fromlist[0] == prey_id:
+            prey_id = preys_lists[preys_type][preys_lists[preys_type].index(prey_fromlist)-1][0]
+            break
+    preys_lists[preys_type]= await fetch_preys(prey_type=preys_type, user_id=user_id)
+    await query.answer(text)
+    context.bot_data['show_prey_after_delete'] = True
     
 async def pr_save(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    text = update.effective_message.text
-    query = "SELECT id FROM bender_prey WHERE text = %s, type = %s"
-    params = (text, 'my')
-    results = make_query(query, params)
-    if results.count() == 0:
-        query = "SELECT name FROM bender_prey WHERE id = %s"
-        params = (prey_id)
-        results = make_query(query, params)
+    
+    global preys_lists
+    
+    user_id = update.callback_query.from_user.id
+    if preys_lists['my'] == None or preys_lists['my'] == []:
+        preys_lists['my'] = await fetch_preys(prey_type='my', user_id=user_id)
+    if preys_lists[preys_type] == None or preys_lists[preys_type] == []:
+        preys_lists[preys_type] = await fetch_preys(prey_type=preys_type, user_id=None)
         
-        query = "INSERT INTO bender_prey (community_id, text, type, user_id, name) VALUES (%s, %s, %s, %s, %s)"
-        params = (community_id, text, 'my', update.callback_query.from_user.id, results[0][0])
-        make_query(query, params)
-
-    await update.callback_query.answer(text='Сохранил в мои молитвы.')
+    text = update.message.text
+    allready_saved = False
+    for prey_fromlist in preys_lists['my']:
+        if prey_fromlist[2] == text:
+            allready_saved = True
+            break
+    if allready_saved == False:
+        for prey_fromlist in preys_lists[preys_type]:
+            if prey_fromlist[0] == prey_id:
+                name = prey_fromlist[1]
+                break
+            
+        query = "INSERT INTO bender_prey (community_id, text, type, user_id, name) VALUES ($1, $2, $3, $4, $5)"
+        params = (COMMUNITY_ID, text, 'my', update.callback_query.from_user.id, name)
+        await make_query(query, params)
+        preys_lists['my'] = await fetch_preys(prey_type='my', user_id=user_id)
+        text='Сохранил в мои молитвы.'  
+    else:
+        text='Уже есть в моих молитвах.'
+        
+    await update.callback_query.answer(text=text)
 
 async def pr_share(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -160,7 +238,7 @@ async def pr_share(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await query.edit_message_text(text="Уверен что хочешь выложить молитву в общие?", reply_markup=InlineKeyboardMarkup(keyboard))
         
 async def pr_share_yes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    text = update.effective_message.text
+    text = update.message.text
     query = "SELECT id FROM bender_prey WHERE text = %s, type = %s"
     params = (text, 'com')
     results = make_query(query, params)
@@ -169,7 +247,7 @@ async def pr_share_yes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         params = (prey_id)
         results = make_query(query, params)
         query = "INSERT INTO bender_prey (community_id, text, type, user_id, name) VALUES (%s, %s, %s, %s, %s)"
-        params = (community_id, text, 'com', update.callback_query.from_user.id, results[0][0])
+        params = (COMMUNITY_ID, text, 'com', update.callback_query.from_user.id, results[0][0])
     else:
         query = "UPDATE bender_prey SET user_id = %s WHERE id = %s"
         params = (update.callback_query.from_user.id, prey_id)
@@ -186,7 +264,7 @@ async def pr_web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 params = (data["text"], data["name"], prey_id)
             else:
                 query = "INSERT INTO bender_prey (community_id, text, type, user_id, name) VALUES (%s, %s, %s, %s, %s)"
-                params = (community_id, data["text"], 'my', update.callback_query.from_user.id, data["name"])
+                params = (COMMUNITY_ID, data["text"], 'my', update.callback_query.from_user.id, data["name"])
             make_query(query, params)
             for prey_fromlist in preys_list:
                 if prey_fromlist[0] == prey_id:
@@ -195,14 +273,14 @@ async def pr_web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     prey_user_id = prey_fromlist[2]
                     break
             if preys_type == 'my':
-                text = urllib.quote(update.effective_message.text)
+                text = urllib.quote(update.message.text)
                 keyboard = [[InlineKeyboardButton("<- предыдущая", callback_data=f"pr_show_{prev_prey_id}"), InlineKeyboardButton("следующая ->", callback_data=f"pr_show_{next_prey_id}")],
-                [InlineKeyboardButton("Назад к списку", callback_data=f"pr_list_{preys_type}"), InlineKeyboardButton("Поделиться со всеми", callback_data=f"pr_share_{prey_id}")]
+                [InlineKeyboardButton("Назад к списку", callback_data=f"pr_list_{preys_type}"), InlineKeyboardButton("Поделиться со всеми", callback_data=f"pr_share_{prey_id}")],
                 [InlineKeyboardButton("Удалить", callback_data=f"pr_delete_{prey_id}"), InlineKeyboardButton("Изменить", web_app=WebAppInfo(url=f"https://all12steps.ru/botapps/text_input.html?data={text}&type=pr"))]]
             else:
                 keyboard = [[InlineKeyboardButton("<- предыдущая", callback_data=f"pr_show_{prev_prey_id}"), InlineKeyboardButton("следующая ->", callback_data=f"pr_show_{next_prey_id}")],
                 [InlineKeyboardButton("Назад к списку", callback_data=f"pr_list_{preys_type}"), InlineKeyboardButton("Сохранить в мои", callback_data=f"pr_save_{prey_id}")]]
                 if prey_user_id == query.from_user.id:
-                    text = urllib.quote(update.effective_message.text)
+                    text = urllib.quote(update.message.text)
                     keyboard.append([InlineKeyboardButton("Удалить", callback_data=f"pr_delete_{prey_id}"), InlineKeyboardButton("Изменить", web_app=WebAppInfo(url=f"https://all12steps.ru/botapps/text_input.html?data={text}&type=pr"))])        
             await query.edit_message_text(text=data["text"], reply_markup=InlineKeyboardMarkup(keyboard))
