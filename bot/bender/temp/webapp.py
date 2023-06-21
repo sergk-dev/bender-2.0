@@ -10,7 +10,7 @@ require a bot token.
 """
 import json
 import logging
-from ..dev import make_query 
+from ..actions.dev import make_query 
 from telegram import __version__ as TG_VER
 
 try:

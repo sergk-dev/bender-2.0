@@ -70,10 +70,10 @@ def delete_prey(prey_id) -> None:
 
 async def pr_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    if query.data = 'pr_list_prog':
+    if query.data == 'pr_list_prog':
         type = 'prog'
         user_id = None
-    elif query.data = 'pr_list_my':
+    elif query.data == 'pr_list_my':
         type = 'my'
         user_id = query.from_user.id
     else:
@@ -91,7 +91,7 @@ async def pr_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             keyboard_row.append(InlineKeyboardButton(prey[1], callback_data="pr_show_"+str(prey[0])))
         keyboard.append(keyboard_row)
         i += 1
-        list += f" + {i}. {prey["name"]} + "\n"
+        list += str(i) + ". " + prey[1] + "\n"
     if preys_type == 'my':
         keyboard.append([InlineKeyboardButton("Записать свою", web_app=WebAppInfo(url=f"https://all12steps.ru/botapps/text_input.html?data=&type=pr&name="))])
     keyboard.append([InlineKeyboardButton("Программные", callback_data="pr_list_prog")])
@@ -120,7 +120,7 @@ async def pr_show(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     elif preys_type == 'com':
         keyboard = [[InlineKeyboardButton("<- предыдущая", callback_data=f"pr_show_{prev_prey_id}"), InlineKeyboardButton("следующая ->", callback_data=f"pr_show_{next_prey_id}")],
                 [InlineKeyboardButton("Назад к списку", callback_data=f"pr_list_{preys_type}"), InlineKeyboardButton("Сохранить в мои", callback_data=f"pr_save_{prey_id}")]]
-        if prey_user_id = query.from_user.id
+        if prey_user_id == query.from_user.id:
             text = urllib.quote(update.effective_message.text)
             keyboard.append([InlineKeyboardButton("Удалить", callback_data=f"pr_delete_{prey_id}"), InlineKeyboardButton("Изменить", web_app=WebAppInfo(url=f"https://all12steps.ru/botapps/text_input.html?data={text}&type=pr"))])
     else:
@@ -202,7 +202,7 @@ async def pr_web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             else:
                 keyboard = [[InlineKeyboardButton("<- предыдущая", callback_data=f"pr_show_{prev_prey_id}"), InlineKeyboardButton("следующая ->", callback_data=f"pr_show_{next_prey_id}")],
                 [InlineKeyboardButton("Назад к списку", callback_data=f"pr_list_{preys_type}"), InlineKeyboardButton("Сохранить в мои", callback_data=f"pr_save_{prey_id}")]]
-                if prey_user_id = query.from_user.id
+                if prey_user_id == query.from_user.id:
                     text = urllib.quote(update.effective_message.text)
                     keyboard.append([InlineKeyboardButton("Удалить", callback_data=f"pr_delete_{prey_id}"), InlineKeyboardButton("Изменить", web_app=WebAppInfo(url=f"https://all12steps.ru/botapps/text_input.html?data={text}&type=pr"))])        
             await query.edit_message_text(text=data["text"], reply_markup=InlineKeyboardMarkup(keyboard))
