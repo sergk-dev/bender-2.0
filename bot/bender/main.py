@@ -4,8 +4,8 @@ from dotenv import load_dotenv
 import os
 
 from telegram import __version__ as TG_VER
-from telegram.ext import Application, ChatMemberHandler, CommandHandler, ContextTypes, MessageHandler, filters, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler
-from .preys import pr_callback, pr_web_app_data
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, KeyboardButton
 
 try:
     from telegram import __version_info__
@@ -18,6 +18,7 @@ if __version_info__ < (20, 0, 0, "alpha", 1):
         f"{TG_VER} version of this example, "
         f"visit https://docs.python-telegram-bot.org/en/v{TG_VER}/examples.html"
     )
+from actions.preys import pr_start, pr_callback
 
 # Enable logging
 logging.basicConfig(
@@ -25,13 +26,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+MAIN_KEYBOARD = [["Молитвы", "Телефоны", "Группы"],
+        ["Файлы", "Спикерские", "Служения"]]
 
 async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     data = json.loads(update.effective_message.web_app_data.data)
     if data["type"] == "pr":
         pr_web_app_data(update, context)
 
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.effective_message.reply_photo(open('/workspaces/bender-2.0/bot/bender/1.jpg', 'rb'))
+        
+    await update.effective_message.reply_text(f"Привет, {update.effective_message.from_user.name}, давно не виделись!", reply_markup=ReplyKeyboardMarkup(MAIN_KEYBOARD, resize_keyboard=True, input_field_placeholder="Выбери раздел из меню"))
 
+async def event_in_develop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.effective_message.reply_text(f"К сожалению этот раздел еще в разработке. Выбери что-то другое.", reply_markup=ReplyKeyboardMarkup(MAIN_KEYBOARD, resize_keyboard=True, input_field_placeholder="Выбери раздел из меню")) 
+    
 def main() -> None:
 
     load_dotenv()
@@ -41,9 +51,10 @@ def main() -> None:
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(pr_callback, r"^pr_.*$"))
-    application.add_handler(MessageHandler(
-        filters.StatusUpdate.WEB_APP_DATA, web_app_data))
-
+    application.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data))
+    application.add_handler(MessageHandler(filters.Text(['Молитвы']), pr_start))
+    application.add_handler(MessageHandler(filters.Text(['Телефоны','Группы','Файлы','Спикерские','Служения']), event_in_develop))
+    
     # Run the bot until the user presses Ctrl-C
     application.run_polling()
 
