@@ -5,7 +5,7 @@ import os
 
 from telegram import __version__ as TG_VER
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, KeyboardButton
+from telegram import Update, ReplyKeyboardMarkup
 
 try:
     from telegram import __version_info__
@@ -18,7 +18,7 @@ if __version_info__ < (20, 0, 0, "alpha", 1):
         f"{TG_VER} version of this example, "
         f"visit https://docs.python-telegram-bot.org/en/v{TG_VER}/examples.html"
     )
-from actions.preys import pr_start, pr_callback
+from actions.preys import pr_start, pr_callback, pr_web_app_data
 
 # Enable logging
 logging.basicConfig(

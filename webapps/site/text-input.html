@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<head>
+    <meta charset="UTF-8">
+    <title>simple text input form</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        .inputText {
+         background-color: var(--tg-theme-secondary-bg-color);
+         color: var(--tg-theme-text-color);
+         display: block;
+         width: 80%;
+         margin: 5vh auto;
+         padding: 1vh;
+        }
+        .inputForm {
+            position: absolute;
+            margin-top: 5vh;
+            margin-left: 5vw;
+            height: 90vh;
+            width: 90vw;
+            border-radius: 5vh;
+            background-color: var(--tg-theme-bg-color);
+            box-shadow: 0 0 2vw #000000;
+        }
+    </style>
+</head>
+<body style="background-color: var(--tg-theme-secondary-bg-color);">
+    <div class="inputForm">
+        <input type="text" id="titleInput" class="inputText" style="font-size: large; text-align: left;">
+        <textarea id="textInput" class="inputText" style="height: 70%; font-size: medium; text-align: justify;"></textarea>
+    </div>
+    <script type="text/javascript">
+        Telegram.WebApp.ready();
+        //const inputValue = Telegram.WebApp.initData;
+        const queryString = window.location.search;
+        const urlParams = new URLSearchParams(queryString);
+        const dataValue = urlParams.get('data');
+        const typeValue = urlParams.get('type');
+        const nameValue = urlParams.get('name');
+        var titleInput = document.getElementById("titleInput");
+        titleInput.value = nameValue;
+        var textArea = document.getElementById("textInput");
+        textArea.value = dataValue;
+
+        Telegram.WebApp.MainButton.setText('Submit').show().onClick(function () {
+            const inputText = document.getElementById('textInput').value;
+            const inputName = document.getElementById('titleInput').value;
+            const data = JSON.stringify({type:typeValue, text: inputText, old_text:dataValue, name: inputName});
+            Telegram.WebApp.sendData(data);
+            Telegram.WebApp.close();
+        });
+        Telegram.WebApp.expand();
+    </script>
+</body>
+</html>
