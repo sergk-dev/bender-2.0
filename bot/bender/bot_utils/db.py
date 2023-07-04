@@ -42,9 +42,13 @@ class DB(object):
         await conn.close()
         return results
     
-    async def get_preys_by_prey_type(self, prey_type: str) -> list:
-        query = "SELECT id, name, text, user_id FROM bender_prey WHERE type = $1 AND community_id = $2"
-        params = (prey_type, self.community.id)
+    async def get_preys_by_prey_type(self, prey_type: str, user_id: int = 0) -> list:
+        if user_id == 0:
+            query = "SELECT id, name, text, user_id FROM bender_prey WHERE type = $1 AND community_id = $2"
+            params = (prey_type, self.community.id)
+        else:
+            query = "SELECT id, name, text, user_id FROM bender_prey WHERE type = $1 AND user_id = $2 AND community_id = $3"
+            params = (prey_type, user_id, self.community.id)
         rows = await self.make_query(query, params)
         preys_list = []
         if rows is not None:
@@ -55,8 +59,8 @@ class DB(object):
     async def get_prog_preys(self) -> list:
         return await self.get_preys_by_prey_type('prog')
     
-    async def get_my_preys(self) -> list:
-        return await self.get_preys_by_prey_type('my')
+    async def get_my_preys(self, user_id: int) -> list:
+        return await self.get_preys_by_prey_type('my', user_id=user_id)
     
     async def get_com_preys(self) -> list:
         return await self.get_preys_by_prey_type('com')
@@ -85,9 +89,9 @@ class DB(object):
         await self.make_query(query, params)
         return await self.get_my_preys()
     
-    async def add_prey(self, prey: Prey) -> list:
+    async def add_prey(self, prey: Prey, prey_type:str) -> list:
         query = "INSERT INTO bender_prey (name, text, type, user_id, community_id) VALUES ($1, $2, $3, $4, $5)"
-        params = (prey.name, prey.text, prey.prey_type, prey.user_id, self.community.id)
+        params = (prey.name, prey.text, prey_type, prey.user_id, self.community.id)
         await self.make_query(query, params)
         return await self.get_my_preys()
     

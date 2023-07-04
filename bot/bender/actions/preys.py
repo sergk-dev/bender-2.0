@@ -1,11 +1,13 @@
+# Раздел молитв
 import logging
-
 import json
+import urllib.parse as urllib
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import ContextTypes
-from .dev import make_query, get_community
-import urllib.parse as urllib
+
+from bot_utils.db import DB
+
 
 # Enable logging
 logging.basicConfig(
@@ -22,7 +24,7 @@ COMMUNITY_ID = get_community()
 preys_lists = {"prog": [], "my": [], "com": []}
 
 async def pr_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    callback_data = update.callback_query.data
+    callback_data = str(update.callback_query.data)
     if callback_data.startswith('pr_list'):
         await pr_list(update, context)
     elif callback_data.startswith('pr_show'):
@@ -38,7 +40,6 @@ async def pr_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             await pr_share(update, context)        
     
 async def pr_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Sends a message with three inline buttons attached."""
     keyboard = [
         [InlineKeyboardButton("Программные", callback_data="pr_list_prog")], 
         [
@@ -49,37 +50,21 @@ async def pr_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Какие молитвы тебе показать?", reply_markup=reply_markup)
 
-async def fetch_preys(prey_type, user_id=None):
-    
-    if user_id:
-        query = "SELECT id, name, text, user_id FROM bender_prey WHERE type = $1 AND user_id = $2 AND community_id = $3"
-        params = (prey_type, user_id, COMMUNITY_ID)
-    else:
-        query = "SELECT id, name, text, user_id FROM bender_prey WHERE type = $1 AND community_id = $2"
-        params = (prey_type, COMMUNITY_ID)
-        
-    return await make_query(query, params)
-    
-async def delete_prey(ch_prey_id) -> None:
-    
-    query = "DELETE FROM bender_prey WHERE id = $1"
-    params = (ch_prey_id)
-        
-    await make_query(query, params)
-
 async def pr_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    
     global preys_type
     
     query = update.callback_query
-    if query.data == 'pr_list_prog':
-        preys_type = 'prog'
-        user_id = None
-    elif query.data == 'pr_list_my':
-        preys_type = 'my'
-        user_id = query.from_user.id
-    else:
-        preys_type = 'com'
-        user_id = None
+    if query != None:
+        if query.data == 'pr_list_prog':
+            preys_type = 'prog'
+            user_id = None
+        elif query.data == 'pr_list_my':
+            preys_type = 'my'
+            user_id = query.from_user.id
+        else:
+            preys_type = 'com'
+            user_id = None
     if preys_lists[preys_type] == None or preys_lists[preys_type] == []:
         preys_lists[preys_type] = await fetch_preys(prey_type=preys_type, user_id=user_id)
     keyboard = []
